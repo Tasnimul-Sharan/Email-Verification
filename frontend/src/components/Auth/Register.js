@@ -15,13 +15,22 @@ const Register = () => {
       const response = await axios.post('http://localhost:5000/api/users/register', { username, email, password });
       console.log(response, "response");
       
+      // Swal.fire({
+      //   icon: 'success',
+      //   title: 'Registration Successful!',
+      //   text: 'A verification email has been sent to your email address. Please check your inbox to verify your account.',
+      //   confirmButtonText: 'OK'
+      // }).then(() => {
+      //   navigate('/login');
+      // });
+      localStorage.setItem('userEmail', email);
       Swal.fire({
         icon: 'success',
         title: 'Registration Successful!',
         text: 'A verification email has been sent to your email address. Please check your inbox to verify your account.',
         confirmButtonText: 'OK'
       }).then(() => {
-        navigate('/login');
+        navigate('/verify-email');
       });
       
     } catch (error) {

@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
 const sendEmail = require('../utils/sendEmail');
 const crypto = require('crypto');
 
+
 exports.registerUser = async (req, res) => {
     const { username, email, password } = req.body;
   
@@ -20,25 +21,26 @@ exports.registerUser = async (req, res) => {
       const hashedPassword = await bcrypt.hash(password, 10);
       console.log('Password hashed successfully');
   
-      const verificationToken = crypto.randomBytes(64).toString('hex');
-      console.log('Verification token generated:', verificationToken);
+      // const verificationToken = crypto.randomBytes(64).toString('hex');
+      const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+      console.log('Verification token generated:', verificationCode);
   
       const user = await User.create({
         username,
         email,
         password: hashedPassword,
-        verificationToken,
+        verificationCode,
       });
   
       console.log('User created:', user);
   
-      const verificationUrl = `http://localhost:5000/api/users/verify/${verificationToken}`;
-      console.log('Verification URL:', verificationUrl);
+      // const verificationUrl = `http://localhost:5000/api/users/verify/${verificationToken}`;
+      // console.log('Verification URL:', verificationUrl);
   
       await sendEmail({
         to: user.email,
         subject: 'Verify your email',
-        text: `Click this link to verify your email: ${verificationUrl}`,
+        text: `Click this link to verify your email: ${verificationCode}`,
       });
   
       res.status(201).json({ message: 'Registration successful, please check your email to verify your account.' });
@@ -49,27 +51,82 @@ exports.registerUser = async (req, res) => {
   };
   
 
+// exports.verifyUser = async (req, res) => {
+//   const { token } = req.params;
+
+//   try {
+//     const user = await User.findOne({ verificationToken: token });
+
+//     if (!user) {
+//       return res.status(400).json({ message: 'Invalid token' });
+//     }
+
+//     user.isVerified = true;
+//     user.verificationToken = undefined;
+
+//     await user.save();
+//     res.status(200).json({ message: 'Email verified successfully' });
+//     // res.redirect('http://localhost:3000/email-verified')
+//   } catch (error) {
+//     console.error('Email verification failed:', error);
+//     res.status(500).json({ message: 'Server error' });
+//   }
+// };
+
+
 exports.verifyUser = async (req, res) => {
-  const { token } = req.params;
+  const { email, verificationCode } = req.body;
 
   try {
-    const user = await User.findOne({ verificationToken: token });
+    const user = await User.findOne({ email });
 
     if (!user) {
-      return res.status(400).json({ message: 'Invalid token' });
+      return res.status(400).json({ message: 'User not found.' });
     }
 
-    user.isVerified = true;
-    user.verificationToken = undefined;
-
-    await user.save();
-    res.status(200).json({ message: 'Email verified successfully' });
-    res.redirect('http://localhost:3000/email-verified')
+    if (user.verificationCode === verificationCode) {
+      user.isVerified = true;
+      user.verificationCode = undefined;
+      await user.save();
+      return res.status(200).json({ message: 'Email verified successfully.', redirectUrl: '/' });
+    } else {
+      return res.status(400).json({ message: 'Invalid verification code.' });
+    }
   } catch (error) {
-    console.error('Email verification failed:', error);
-    res.status(500).json({ message: 'Server error' });
+    console.error('Error verifying email:', error);
+    return res.status(500).json({ message: 'Error verifying email.' });
   }
 };
+
+exports.resendCode = async (req, res) => {
+  const { email } = req.body;
+
+  try {
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      return res.status(400).send('User not found.');
+    }
+
+    // Generate new verification code
+    const newVerificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+    user.verificationCode = newVerificationCode;
+    await user.save();
+
+    // Send the new code via email
+    await sendEmail({
+      to: user.email,
+      subject: 'Resend Verification Code',
+      text: `Your new verification code is: ${newVerificationCode}`,
+    });
+
+    res.status(200).send('Verification code has been resent. Please check your email.');
+  } catch (error) {
+    console.error('Error resending verification code:', error); // Log detailed error
+    res.status(500).send('Server error.');
+  }
+};
+
 
 exports.loginUser = async (req, res) => {
   const { email, password } = req.body;
